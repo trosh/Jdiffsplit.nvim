@@ -1,6 +1,4 @@
-local M = {}
-
-function M.get_output(cwd, command)
+local function get_output(cwd, command)
 	local out = vim.system(command, { cwd = cwd }):wait()
 	if out.code ~= 0 then
 		print(out.stderr)
@@ -9,18 +7,18 @@ function M.get_output(cwd, command)
 	return out.stdout
 end
 
-function M.Jdiffsplit(splitcmd, revision)
+local function Jdiffsplit(splitcmd, revision)
 	if revision == "" then revision = "@-" end
 	-- Save the current buffer's filename
 	local path = vim.api.nvim_buf_get_name(0)
 	local folder   = vim.fn.fnamemodify(path, ':h')
 	local filename = vim.fn.fnamemodify(path, ':t')
 	-- Get the short description of the target revision
-	local change_id = assert(M.get_output(folder, {
+	local change_id = assert(get_output(folder, {
 		"jj", "show", "--no-patch", revision,
 		"--template", "change_id.shortest()", }))
 	-- Get the state of the file in the target revision
-	local file_contents = assert(M.get_output(folder, {
+	local file_contents = assert(get_output(folder, {
 		"jj", "file", "show", filename, "--revision", revision, }))
 	-- Create a new split with a scratch buffer
 	vim.cmd(splitcmd .. " new")
@@ -58,18 +56,18 @@ function M.Jdiffsplit(splitcmd, revision)
 	--vim.cmd('wincmd p') -- Return to the new buffer
 end
 
-function M.setup(opts)
+local function setup(opts)
 	opts = opts or {} -- Merge user options with defaults
 	vim.api.nvim_create_user_command(
 		'Jdiffsplit',
-		function(opts) M.Jdiffsplit("split", opts.args) end,
+		function(opts) Jdiffsplit("split", opts.args) end,
 		{ nargs = "?" }
 	)
 	vim.api.nvim_create_user_command(
 		'Jvdiffsplit',
-		function(opts) M.Jdiffsplit("vert", opts.args) end,
+		function(opts) Jdiffsplit("vert", opts.args) end,
 		{ nargs = "?" }
 	)
 end
 
-return M
+return { setup = setup }
