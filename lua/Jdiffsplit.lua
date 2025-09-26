@@ -1,35 +1,37 @@
 local M = {}
 
-function M.Jdiffsplit(splitcmd, revision)
-	if revision == "" then revision = "@-" end
-	local change_id = vim.fn.system(
-		string.format("jj show --no-patch -T 'change_id.shortest()' %s",
-			vim.fn.shellescape(revision)
-		)
-	)
-	-- Save the current buffer's filename
-	local filename = vim.api.nvim_buf_get_name(0)
-	-- Execute the command
-	local cmd = string.format(
-		'jj file show -r %s %s',
-		vim.fn.shellescape(revision),
-		vim.fn.shellescape(filename)
-	)
-	local output = vim.fn.system(cmd)
-	if vim.v.shell_error ~= 0 then
-		print(output)
+function M.get_output(cwd, command)
+	local out = vim.system(command, { cwd = cwd }):wait()
+	if out.code ~= 0 then
+		print(out.stderr)
 		return nil
 	end
+	return out.stdout
+end
+
+function M.Jdiffsplit(splitcmd, revision)
+	if revision == "" then revision = "@-" end
+	-- Save the current buffer's filename
+	local path = vim.api.nvim_buf_get_name(0)
+	local folder   = vim.fn.fnamemodify(path, ':h')
+	local filename = vim.fn.fnamemodify(path, ':t')
+	-- Get the short description of the target revision
+	local change_id = assert(M.get_output(folder, {
+		"jj", "show", "--no-patch", revision,
+		"--template", "change_id.shortest()", }))
+	-- Get the state of the file in the target revision
+	local file_contents = assert(M.get_output(folder, {
+		"jj", "file", "show", filename, "--revision", revision, }))
 	-- Create a new split with a scratch buffer
 	vim.cmd(splitcmd .. " new")
 	vim.opt_local.buftype   = 'nofile'
 	vim.opt_local.bufhidden = 'wipe'
 	vim.opt_local.swapfile  = false
 	vim.api.nvim_buf_set_name(0,
-	string.format('%s:%s(%s)', filename, revision, change_id))
-	-- Split the output into lines
-	local lines = vim.split(output, "\n")
-	-- If the output has a final newline (as it should)…
+	string.format('%s:%s(%s)', path, revision, change_id))
+	-- Split the file contents into lines
+	local lines = vim.split(file_contents, "\n")
+	-- If the file had a final newline (as it should)…
 	if #lines > 0 and lines[#lines] == "" then
 		-- … Remove the resulting empty element
 		table.remove(lines, #lines)
@@ -43,7 +45,7 @@ function M.Jdiffsplit(splitcmd, revision)
 	vim.cmd('wincmd p')
 	vim.cmd('diffthis')
 	vim.cmd('wincmd p')
-	local filetype = vim.fn.fnamemodify(filename, ':e')
+	local filetype = vim.fn.fnamemodify(path, ':e')
 	vim.bo.filetype = filetype
 	vim.bo.syntax   = filetype
 end
