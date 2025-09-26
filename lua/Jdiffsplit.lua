@@ -36,6 +36,7 @@ function M.Jdiffsplit(splitcmd, revision)
 	if #lines > 0 and lines[#lines] == "" then
 		-- … Remove the resulting empty element
 		table.remove(lines, #lines)
+		-- TODO if there was EOL, ensure the buffer has no EOL
 	end
 	-- Insert the lines into the buffer
 	vim.api.nvim_buf_set_lines(0, -2, -1, false, lines)
