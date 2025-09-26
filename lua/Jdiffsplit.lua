@@ -28,7 +28,8 @@ function M.Jdiffsplit(splitcmd, revision)
 	vim.opt_local.bufhidden = 'wipe'
 	vim.opt_local.swapfile  = false
 	vim.api.nvim_buf_set_name(0,
-	string.format('%s:%s(%s)', path, revision, change_id))
+		string.format('%s:%s(%s)', path, change_id, revision)
+	)
 	-- Split the file contents into lines
 	local lines = vim.split(file_contents, "\n")
 	-- If the file had a final newline (as it should)…
