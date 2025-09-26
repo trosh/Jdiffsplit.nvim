@@ -1,4 +1,6 @@
-function Jdiff(splitcmd, revision)
+local M = {}
+
+function M.Jdiffsplit(splitcmd, revision)
 	if revision == "" then revision = "@-" end
 	local change_id = vim.fn.system(
 		string.format("jj show --no-patch -T 'change_id.shortest()' %s",
@@ -46,14 +48,18 @@ function Jdiff(splitcmd, revision)
 	vim.bo.syntax   = filetype
 end
 
-vim.api.nvim_create_user_command(
-	'Jdiffsplit',
-	function(opts) Jdiff("split", opts.args) end,
-	{ nargs = "?" }
-)
+function M.setup(opts)
+	opts = opts or {} -- Merge user options with defaults
+	vim.api.nvim_create_user_command(
+		'Jdiffsplit',
+		function(opts) M.Jdiffsplit("split", opts.args) end,
+		{ nargs = "?" }
+	)
+	vim.api.nvim_create_user_command(
+		'Jvdiffsplit',
+		function(opts) M.Jdiffsplit("vert", opts.args) end,
+		{ nargs = "?" }
+	)
+end
 
-vim.api.nvim_create_user_command(
-	'Jvdiffsplit',
-	function(opts) Jdiff("vert", opts.args) end,
-	{ nargs = "?" }
-)
+return M
