@@ -7,65 +7,76 @@ local function get_output(cwd, command)
 	return out.stdout
 end
 
-local function Jdiffsplit(splitcmd, revision)
+local function Jdiffsplit(vertical, revision)
 	if revision == "" then revision = "@-" end
 	-- Save the current buffer's filename
-	local path = vim.api.nvim_buf_get_name(0)
-	local folder   = vim.fn.fnamemodify(path, ':h')
-	local filename = vim.fn.fnamemodify(path, ':t')
+	local bufname = vim.api.nvim_buf_get_name(0)
+	local path   = vim.fn.fnamemodify(bufname, ':p')
+	local folder = vim.fn.fnamemodify(path, ':h')
+	local folder = vim.trim(assert(get_output(folder, {
+		"jj", "workspace", "root", })))
+	local relpath = vim.trim(assert(get_output(folder, {
+		"realpath", "--relative-to", folder, path })))
 	-- Get the short description of the target revision
 	local change_id = assert(get_output(folder, {
-		"jj", "show", "--no-patch", revision,
-		"--template", "change_id.shortest()", }))
-	-- Get the state of the file in the target revision
-	local file_contents = assert(get_output(folder, {
-		"jj", "file", "show", filename, "--revision", revision, }))
-	-- Create a new split with a scratch buffer
-	vim.cmd(splitcmd .. " new")
-	vim.opt_local.buftype   = 'nofile'
+		"jj", "show", "--no-patch", revision, "--template", "change_id", }))
+	local change_id_short = assert(get_output(folder, {
+		"jj", "show", "--no-patch", revision, "--template", "change_id.shortest()", }))
+	local tmpdir = vim.trim(assert(get_output(folder, { "mktemp", "--dry-run" })))
+	local tmpbase = vim.trim(assert(get_output(folder, { "basename", tmpdir })))
+	local tmp_filename = tmpdir .. "/" .. relpath
+	assert(get_output(folder, { "jj", "workspace", "add", tmpdir, "--revision", "root()", }))
+	assert(get_output(tmpdir, { "jj", "restore", relpath, "--from", change_id, }))
+	---- Create a new split with the temporary file
+	if vertical then
+		vim.cmd.vsplit(tmp_filename)
+	else
+		vim.cmd.split(tmp_filename)
+	end
 	vim.opt_local.bufhidden = 'wipe'
 	vim.opt_local.swapfile  = false
-	vim.api.nvim_buf_set_name(0,
-		string.format('%s:%s(%s)', path, change_id, revision)
-	)
-	-- Split the file contents into lines
-	local lines = vim.split(file_contents, "\n")
-	-- If the file had a final newline (as it should)…
-	if #lines > 0 and lines[#lines] == "" then
-		-- … Remove the resulting empty element
-		table.remove(lines, #lines)
-		-- TODO if there was EOL, ensure the buffer has no EOL
-	end
-	-- Insert the lines into the buffer
-	vim.api.nvim_buf_set_lines(0, -2, -1, false, lines)
-	-- Make the new buffer read-only
-	vim.cmd('setlocal readonly')
-	-- Configure syntax highlighting based on the filename
-	local filetype = vim.fn.fnamemodify(path, ':e')
-	vim.bo.filetype = filetype
-	vim.bo.syntax   = filetype
-	-- Enable diff mode for both buffers
+	local changerev = string.format('change %s, rev %s', relpath, change_id_short, revision)
 	vim.cmd('diffthis')
 	vim.cmd('wincmd p')
 	vim.cmd('diffthis')
 	vim.cmd('wincmd p')
 	vim.cmd('norm! zR') -- open folds
-	--vim.cmd('norm! gg') -- cursor on first line
-	--vim.cmd('norm! ]c') -- cursor on first change
-	--vim.cmd('norm! zz') -- center view around cursor
-	--vim.cmd('wincmd p') -- Return to the new buffer
+	----vim.cmd('norm! gg') -- cursor on first line
+	----vim.cmd('norm! ]c') -- cursor on first change
+	----vim.cmd('norm! zz') -- center view around cursor
+	----vim.cmd('wincmd p') -- Return to the new buffer
+	local acmd = vim.api.nvim_create_autocmd
+	acmd( { "BufUnload" }, {
+		pattern = tmp_filename,
+		callback = function()
+			assert(get_output(tmpdir, { "jj", "abandon", }))
+			assert(get_output(tmpdir, { "jj", "workspace", "forget", }))
+			assert(get_output(folder, { "rm", "-rf", tmpdir }))
+		end,
+		once = true })
+	acmd( { "WinEnter" }, {
+		pattern = tmp_filename,
+		callback = function() print(changerev) end, })
+	acmd( { "BufWritePost" }, {
+		pattern = tmp_filename,
+		callback = function()
+			assert(get_output(tmpdir, { "jj", "st", }))
+			assert(get_output(folder, {
+				"jj", "restore", relpath, "--restore-descendants",
+				"--from", tmpbase.."@", "--to", change_id }))
+		end, })
 end
 
 local function setup(opts)
 	opts = opts or {} -- Merge user options with defaults
 	vim.api.nvim_create_user_command(
 		'Jdiffsplit',
-		function(opts) Jdiffsplit("split", opts.args) end,
+		function(opts) Jdiffsplit(false, opts.args) end,
 		{ nargs = "?" }
 	)
 	vim.api.nvim_create_user_command(
 		'Jvdiffsplit',
-		function(opts) Jdiffsplit("vert", opts.args) end,
+		function(opts) Jdiffsplit(true, opts.args) end,
 		{ nargs = "?" }
 	)
 end
