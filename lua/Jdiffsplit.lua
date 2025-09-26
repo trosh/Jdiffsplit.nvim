@@ -50,6 +50,11 @@ function M.Jdiffsplit(splitcmd, revision)
 	vim.cmd('wincmd p')
 	vim.cmd('diffthis')
 	vim.cmd('wincmd p')
+	vim.cmd('norm! zR') -- open folds
+	--vim.cmd('norm! gg') -- cursor on first line
+	--vim.cmd('norm! ]c') -- cursor on first change
+	--vim.cmd('norm! zz') -- center view around cursor
+	--vim.cmd('wincmd p') -- Return to the new buffer
 end
 
 function M.setup(opts)
