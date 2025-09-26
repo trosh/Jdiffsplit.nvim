@@ -41,14 +41,15 @@ function M.Jdiffsplit(splitcmd, revision)
 	vim.api.nvim_buf_set_lines(0, -2, -1, false, lines)
 	-- Make the new buffer read-only
 	vim.cmd('setlocal readonly')
+	-- Configure syntax highlighting based on the filename
+	local filetype = vim.fn.fnamemodify(path, ':e')
+	vim.bo.filetype = filetype
+	vim.bo.syntax   = filetype
 	-- Enable diff mode for both buffers
 	vim.cmd('diffthis')
 	vim.cmd('wincmd p')
 	vim.cmd('diffthis')
 	vim.cmd('wincmd p')
-	local filetype = vim.fn.fnamemodify(path, ':e')
-	vim.bo.filetype = filetype
-	vim.bo.syntax   = filetype
 end
 
 function M.setup(opts)
